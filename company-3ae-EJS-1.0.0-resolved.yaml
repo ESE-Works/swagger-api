@@ -1,0 +1,1075 @@
+openapi: 3.0.3
+info:
+  title: 부동산 계약 API
+  description: 자취 청년을 위한 AI 계약서 감수 + 청년 혜택 매칭 앱 API 명세서
+  version: 1.0.0
+servers:
+- url: https://virtserver.swaggerhub.com/company-3ae/EJS/1.0.0
+  description: SwaggerHub API Auto Mocking
+- url: https://api.jalsala.app/v1
+  description: Production (예정)
+security:
+- bearerAuth: []
+tags:
+- name: Auth
+  description: "인증 (F-01, F-02)"
+- name: User
+  description: "사용자 프로필 (F-04, F-13)"
+- name: Notification
+  description: 알림 설정 (F-03)
+- name: Contract
+  description: "계약서 분석 (F-07, F-08, F-09, F-11)"
+- name: Benefit
+  description: 청년 지원 혜택 (F-12)
+- name: Chat
+  description: AI Q&A 챗봇
+paths:
+  /auth/social-login:
+    post:
+      tags:
+      - Auth
+      summary: 소셜 로그인 / 회원가입
+      description: "가입된 계정이면 로그인, 미가입이면 자동으로 회원가입 처리"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/auth_sociallogin_body"
+        required: true
+      responses:
+        "200":
+          description: 기존 회원 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialLoginResponse"
+        "201":
+          description: 신규 회원가입 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialLoginResponse"
+        "401":
+          description: SOCIAL_AUTH_FAILED — 소셜 서버 인증 실패/취소
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: SOCIAL_SERVER_ERROR — 소셜 제공사 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security: []
+  /auth/token/refresh:
+    post:
+      tags:
+      - Auth
+      summary: 토큰 갱신
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/token_refresh_body"
+        required: true
+      responses:
+        "200":
+          description: 갱신 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200"
+        "401":
+          description: TOKEN_EXPIRED 또는 TOKEN_INVALID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security: []
+  /auth/logout:
+    post:
+      tags:
+      - Auth
+      summary: 로그아웃 (F-05)
+      responses:
+        "200":
+          description: 로그아웃 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleSuccess"
+        "401":
+          $ref: "#/components/responses/AuthRequired"
+      security:
+      - bearerAuth: []
+  /user/profile:
+    get:
+      tags:
+      - User
+      summary: "프로필 조회 (F-04, F-13)"
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_1"
+        "401":
+          $ref: "#/components/responses/AuthRequired"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - User
+      summary: 회원탈퇴
+      description: 탈퇴 시 서버에 저장된 회원 정보 및 분석 이력 즉시 삭제. 재확인 모달은 클라이언트에서 처리.
+      responses:
+        "204":
+          description: 탈퇴 성공 (응답 본문 없음)
+        "401":
+          $ref: "#/components/responses/AuthRequired"
+      security:
+      - bearerAuth: []
+    patch:
+      tags:
+      - User
+      summary: 프로필 수정 (닉네임·사진·온보딩 정보)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/UserProfileUpdate"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserProfileUpdate"
+        required: true
+      responses:
+        "200":
+          description: 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleSuccess"
+        "400":
+          description: INVALID_NICKNAME / IMAGE_TOO_LARGE / UNSUPPORTED_FORMAT
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/AuthRequired"
+      security:
+      - bearerAuth: []
+  /user/notification-settings:
+    get:
+      tags:
+      - Notification
+      summary: 알림 설정 조회 (F-03)
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_2"
+        "401":
+          $ref: "#/components/responses/AuthRequired"
+      security:
+      - bearerAuth: []
+    patch:
+      tags:
+      - Notification
+      summary: 알림 설정 변경
+      description: 변경할 항목만 포함하여 전송
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationSettings"
+        required: true
+      responses:
+        "200":
+          description: 변경 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleSuccess"
+        "400":
+          description: PERMISSION_DENIED — OS 알림 권한 미허용
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/AuthRequired"
+      security:
+      - bearerAuth: []
+  /contract/upload:
+    post:
+      tags:
+      - Contract
+      summary: 계약서 업로드 (F-07)
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/contract_upload_body"
+        required: true
+      responses:
+        "201":
+          description: 업로드 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_201"
+        "400":
+          description: FILE_TOO_LARGE / UNSUPPORTED_FORMAT / FILE_COUNT_EXCEEDED
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: LOW_OCR_CONFIDENCE / NOT_CONTRACT
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: UPLOAD_FAILED — 네트워크 오류 (자동 재시도 1회 후 반환)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+      - {}
+  /contract/{contract_id}/fields:
+    patch:
+      tags:
+      - Contract
+      summary: 계약서 핵심 필드 수정 (F-11)
+      description: OCR 자동 추출값을 사용자가 확인·수정하는 단계
+      parameters:
+      - name: contract_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: c1d2e3f4-0000-0000-0000-000000000000
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContractFields"
+        required: true
+      responses:
+        "200":
+          description: 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleSuccess"
+        "400":
+          description: INVALID_FIELD / MISSING_REQUIRED_FIELD
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+      - {}
+  /contract/{contract_id}/analyze:
+    post:
+      tags:
+      - Contract
+      summary: AI 분석 실행 (F-08)
+      description: 핵심 필드 확정 후 AI 조항 분석 요청
+      parameters:
+      - name: contract_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: c1d2e3f4-0000-0000-0000-000000000000
+      responses:
+        "200":
+          description: 분석 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_3"
+        "202":
+          description: "ACCEPTED — 60초 초과 시 비동기 처리 중, 완료 시 푸시 알림 발송"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_202"
+        "500":
+          description: AI_PARSE_FAILED — JSON 형식 응답 실패 (1회 자동 재시도)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: AI_TIMEOUT — 60초 초과
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+      - {}
+  /contract/{contract_id}/analysis:
+    get:
+      tags:
+      - Contract
+      summary: 분석 결과 조회 (F-09)
+      parameters:
+      - name: contract_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: c1d2e3f4-0000-0000-0000-000000000000
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_3"
+        "404":
+          description: NOT_FOUND — contract_id에 해당하는 분석 결과 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+      - {}
+    delete:
+      tags:
+      - Contract
+      summary: 분석 이력 삭제
+      parameters:
+      - name: contract_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        example: c1d2e3f4-0000-0000-0000-000000000000
+      responses:
+        "204":
+          description: 삭제 성공 (응답 본문 없음)
+        "401":
+          $ref: "#/components/responses/AuthRequired"
+        "404":
+          description: NOT_FOUND
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+  /contract/history:
+    get:
+      tags:
+      - Contract
+      summary: 분석 이력 목록 조회 (F-09)
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1
+      - name: limit
+        in: query
+        required: false
+        schema:
+          maximum: 20
+          type: integer
+          default: 20
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_4"
+        "400":
+          description: STORAGE_LIMIT — 저장 20건 초과
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/AuthRequired"
+      security:
+      - bearerAuth: []
+  /benefits/match:
+    get:
+      tags:
+      - Benefit
+      summary: 혜택 매칭 조회 (F-12)
+      parameters:
+      - name: region
+        in: query
+        required: true
+        schema:
+          type: string
+        example: 서울 관악구
+      - name: age
+        in: query
+        required: true
+        schema:
+          type: integer
+        example: 27
+      - name: income_range
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - under_60
+          - "60100"
+          - over_100
+          - unspecified
+      - name: contract_type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - monthly
+          - lease
+          - semi_lease
+      - name: deposit
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: monthly_rent
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: 조회 성공 (NO_MATCH 시 items가 빈 배열로 반환됨)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_5"
+        "503":
+          description: BENEFIT_API_ERROR — 공공 API 전체 실패 (캐시 데이터 반환 시 200 + is_cached:true)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+      - {}
+  /benefits/list:
+    get:
+      tags:
+      - Benefit
+      summary: 전체 혜택 목록 조회
+      parameters:
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - housing
+          - finance
+          - job
+          - life
+      - name: keyword
+        in: query
+        description: 정책명 검색 (2자 이상)
+        required: false
+        schema:
+          type: string
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 1
+      - name: limit
+        in: query
+        required: false
+        schema:
+          maximum: 50
+          type: integer
+          default: 20
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_6"
+      security:
+      - bearerAuth: []
+      - {}
+  /chat:
+    post:
+      tags:
+      - Chat
+      summary: 채팅 메시지 전송
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/chat_body"
+        required: true
+      responses:
+        "200":
+          description: 응답 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_7"
+        "404":
+          description: CONTRACT_NOT_FOUND — contract_id에 해당하는 계약서 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: CHAT_FAILED — AI 응답 생성 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - bearerAuth: []
+      - {}
+components:
+  schemas:
+    SuccessEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+    SimpleSuccess:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          $ref: "#/components/schemas/ErrorResponse_error"
+    SuccessCode:
+      type: string
+      description: |
+        | 코드 | HTTP | 설명 |
+        |---|---|---|
+        | OK | 200 | 조회/수정 성공 |
+        | CREATED | 201 | 리소스 신규 생성 성공 |
+        | ACCEPTED | 202 | 요청 접수, 비동기 처리 중 |
+        | NO_CONTENT | 204 | 삭제 성공 (응답 본문 없음) |
+      enum:
+      - OK
+      - CREATED
+      - ACCEPTED
+      - NO_CONTENT
+    ErrorCode:
+      type: string
+      description: |
+        | 코드 | HTTP | 설명 |
+        |---|---|---|
+        | AUTH_REQUIRED | 401 | 인증 토큰 없음 또는 만료 |
+        | FORBIDDEN | 403 | 접근 권한 없음 |
+        | NOT_FOUND | 404 | 리소스 없음 |
+        | NETWORK_ERROR | 503 | 서버/외부 API 오류 |
+        | VALIDATION_ERROR | 400 | 입력값 검증 실패 |
+      enum:
+      - AUTH_REQUIRED
+      - FORBIDDEN
+      - NOT_FOUND
+      - NETWORK_ERROR
+      - VALIDATION_ERROR
+      - TOKEN_EXPIRED
+      - TOKEN_INVALID
+      - UNPROCESSABLE
+      - TIMEOUT
+      - SOCIAL_AUTH_FAILED
+      - SOCIAL_SERVER_ERROR
+      - INVALID_NICKNAME
+      - IMAGE_TOO_LARGE
+      - FILE_TOO_LARGE
+      - FILE_COUNT_EXCEEDED
+      - UNSUPPORTED_FORMAT
+      - STORAGE_LIMIT
+      - LOW_OCR_CONFIDENCE
+      - NOT_CONTRACT
+      - UPLOAD_FAILED
+      - AI_PARSE_FAILED
+      - AI_TIMEOUT
+      - RARE_CLAUSE
+      - BENEFIT_API_ERROR
+      - NO_MATCH
+      - CHAT_FAILED
+      - PERMISSION_DENIED
+      - INVALID_FIELD
+      - MISSING_REQUIRED_FIELD
+      - CONTRACT_NOT_FOUND
+    SocialLoginResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessEnvelope"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/SocialLoginResponse_data"
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nickname:
+          type: string
+        profile_image_url:
+          type: string
+        provider:
+          type: string
+          enum:
+          - kakao
+          - google
+          - naver
+        region:
+          type: string
+        age:
+          type: integer
+        income_range:
+          type: string
+          enum:
+          - under_60
+          - "60100"
+          - over_100
+          - unspecified
+    UserProfileUpdate:
+      type: object
+      properties:
+        nickname:
+          maxLength: 20
+          minLength: 2
+          type: string
+        profile_image:
+          type: string
+          description: "JPEG/PNG/WEBP, 최대 5MB"
+          format: binary
+        region:
+          type: string
+          example: 서울 관악구
+        age:
+          maximum: 120
+          minimum: 1
+          type: integer
+        income_range:
+          type: string
+          enum:
+          - under_60
+          - "60100"
+          - over_100
+          - unspecified
+    NotificationSettings:
+      type: object
+      properties:
+        analysis_complete:
+          type: boolean
+        benefit_update:
+          type: boolean
+        notice_event:
+          type: boolean
+        ai_chat:
+          type: boolean
+    ContractUploadResult:
+      type: object
+      properties:
+        contract_id:
+          type: string
+          format: uuid
+        ocr_confidence:
+          maximum: 1
+          minimum: 0
+          type: number
+          format: float
+        extracted_fields:
+          $ref: "#/components/schemas/ContractFields"
+    ContractFields:
+      required:
+      - contract_type
+      - deposit
+      - region
+      type: object
+      properties:
+        region:
+          type: string
+          example: 서울 관악구
+        contract_type:
+          type: string
+          enum:
+          - monthly
+          - lease
+          - semi_lease
+        deposit:
+          type: integer
+          description: 보증금 (만원)
+        monthly_rent:
+          type: integer
+          description: "월세 (만원, 전세는 0)"
+        field_source:
+          type: string
+          enum:
+          - ocr_auto
+          - ocr_corrected
+          - manual
+    AnalysisResult:
+      type: object
+      properties:
+        analysis_id:
+          type: string
+          format: uuid
+        risk_score:
+          maximum: 100
+          minimum: 0
+          type: integer
+        risk_level:
+          type: string
+          description: "safe: 0~30, warning: 31~60, danger: 61~100"
+          enum:
+          - safe
+          - warning
+          - danger
+        summary:
+          type: string
+        clauses:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnalysisResult_clauses"
+    ContractHistoryItem:
+      type: object
+      properties:
+        contract_id:
+          type: string
+          format: uuid
+        risk_score:
+          type: integer
+        risk_level:
+          type: string
+          enum:
+          - safe
+          - warning
+          - danger
+        summary:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+    BenefitItem:
+      type: object
+      properties:
+        policy_id:
+          type: string
+        policy_name:
+          type: string
+        support_amount:
+          type: string
+        status:
+          type: string
+          enum:
+          - available
+          - check_required
+          - closed
+        deadline_date:
+          type: string
+          format: date
+        d_day:
+          type: integer
+        apply_url:
+          type: string
+          format: uri
+        match_reason:
+          type: string
+    BenefitListResult:
+      type: object
+      properties:
+        data_updated_at:
+          type: string
+          format: date
+        is_cached:
+          type: boolean
+          description: 공공 API 장애로 캐시 데이터 반환 시 true
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BenefitItem"
+    auth_sociallogin_body:
+      required:
+      - provider
+      - social_token
+      type: object
+      properties:
+        provider:
+          type: string
+          example: kakao
+          enum:
+          - kakao
+          - google
+          - naver
+        social_token:
+          type: string
+          example: eyJhbGci...
+    token_refresh_body:
+      required:
+      - refresh_token
+      type: object
+      properties:
+        refresh_token:
+          type: string
+    inline_response_200:
+      allOf:
+      - $ref: "#/components/schemas/SuccessEnvelope"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_data"
+    inline_response_200_1:
+      allOf:
+      - $ref: "#/components/schemas/SuccessEnvelope"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/UserProfile"
+    inline_response_200_2:
+      allOf:
+      - $ref: "#/components/schemas/SuccessEnvelope"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/NotificationSettings"
+    contract_upload_body:
+      required:
+      - files
+      - source_type
+      type: object
+      properties:
+        files:
+          type: array
+          description: "이미지(JPG/PNG, 최대 10MB·10장) 또는 PDF(최대 20MB)"
+          items:
+            type: string
+            format: binary
+        source_type:
+          type: string
+          enum:
+          - camera
+          - gallery
+          - file
+    inline_response_201:
+      allOf:
+      - $ref: "#/components/schemas/SuccessEnvelope"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/ContractUploadResult"
+    inline_response_200_3:
+      allOf:
+      - $ref: "#/components/schemas/SuccessEnvelope"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/AnalysisResult"
+    inline_response_202:
+      allOf:
+      - $ref: "#/components/schemas/SuccessEnvelope"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_202_data"
+    inline_response_200_4:
+      allOf:
+      - $ref: "#/components/schemas/SuccessEnvelope"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_4_data"
+    inline_response_200_5:
+      allOf:
+      - $ref: "#/components/schemas/SuccessEnvelope"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/BenefitListResult"
+    inline_response_200_6:
+      allOf:
+      - $ref: "#/components/schemas/SuccessEnvelope"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_6_data"
+    chat_history:
+      type: object
+      properties:
+        role:
+          type: string
+          enum:
+          - user
+          - assistant
+        content:
+          type: string
+    chat_body:
+      required:
+      - contract_id
+      - message
+      type: object
+      properties:
+        contract_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+          example: 이 특약 조항 빼달라고 해도 돼?
+        history:
+          maxItems: 20
+          type: array
+          items:
+            $ref: "#/components/schemas/chat_history"
+    inline_response_200_7:
+      allOf:
+      - $ref: "#/components/schemas/SuccessEnvelope"
+      - type: object
+        properties:
+          data:
+            $ref: "#/components/schemas/inline_response_200_7_data"
+    ErrorResponse_error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: 입력값을 확인해주세요.
+    SocialLoginResponse_data_user:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nickname:
+          type: string
+        profile_image_url:
+          type: string
+    SocialLoginResponse_data:
+      type: object
+      properties:
+        is_new_user:
+          type: boolean
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        user:
+          $ref: "#/components/schemas/SocialLoginResponse_data_user"
+    AnalysisResult_clauses:
+      type: object
+      properties:
+        text:
+          type: string
+        type:
+          type: string
+          enum:
+          - danger
+          - warning
+          - safe
+          - unknown
+        reason:
+          maxLength: 30
+          type: string
+        suggestion:
+          type: string
+    inline_response_200_data:
+      type: object
+      properties:
+        access_token:
+          type: string
+    inline_response_202_data:
+      type: object
+      properties:
+        analysis_id:
+          type: string
+        status:
+          type: string
+          example: processing
+    inline_response_200_4_data:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: 전체 건수 (최대 저장 20건)
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ContractHistoryItem"
+    inline_response_200_6_data:
+      type: object
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BenefitItem"
+    inline_response_200_7_data:
+      type: object
+      properties:
+        reply:
+          type: string
+        disclaimer:
+          type: string
+          example: 이 내용은 정보 제공 목적이며 법적 조언이 아닙니다.
+  responses:
+    AuthRequired:
+      description: AUTH_REQUIRED — 인증 토큰 없음 또는 만료
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  parameters:
+    ContractId:
+      name: contract_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: c1d2e3f4-0000-0000-0000-000000000000
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
